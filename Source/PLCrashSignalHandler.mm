@@ -158,33 +158,33 @@ static bool previous_action_callback (int signo, siginfo_t *info, ucontext_t *ua
  * provide a value of NULL for 'context'.
  */
 static bool internal_callback_iterator (int signo, siginfo_t *info, ucontext_t *uap, void *context) {
-    /* Call the next handler in the chain. If this is the last handler in the chain, pass it the original signal
-     * handlers. */
-    bool handled = false;
-    shared_handler_context.callbacks.set_reading(true); {
-        async_list<plcrash_signal_user_callback>::node *prev = (async_list<plcrash_signal_user_callback>::node *) context;
-        async_list<plcrash_signal_user_callback>::node *current = shared_handler_context.callbacks.next(prev);
+  /* Call the next handler in the chain. If this is the last handler in the chain, pass it the original signal
+   * handlers. */
+  bool handled = false;
+  shared_handler_context.callbacks.set_reading(true); {
+    async_list<plcrash_signal_user_callback>::node *prev = (async_list<plcrash_signal_user_callback>::node *) context;
+    async_list<plcrash_signal_user_callback>::node *current = shared_handler_context.callbacks.next(prev);
 
-        /* Check for end-of-list */
-        if (current == NULL) {
-            shared_handler_context.callbacks.set_reading(false);
-            return false;
-        }
+    /* Check for end-of-list */
+    if (current == NULL) {
+      shared_handler_context.callbacks.set_reading(false);
+      return false;
+    }
         
-        /* Check if any additional handlers are registered. If so, provide the next handler as the forwarding target. */
-        if (shared_handler_context.callbacks.next(current) != NULL) {
-            PLCrashSignalHandlerCallback next_handler = {
-                .callback = internal_callback_iterator,
-                .context = current
-            };
-            handled = current->value().callback(signo, info, uap, current->value().context, &next_handler);
-        } else {
-            /* Otherwise, we've hit the final handler in the list. */
-            handled = current->value().callback(signo, info, uap, current->value().context, NULL);
-        }
-    } shared_handler_context.callbacks.set_reading(false);
+    /* Check if any additional handlers are registered. If so, provide the next handler as the forwarding target. */
+    if (shared_handler_context.callbacks.next(current) != NULL) {
+      PLCrashSignalHandlerCallback next_handler = {
+        .callback = internal_callback_iterator,
+        .context = current
+      };
+      handled = current->value().callback(signo, info, uap, current->value().context, &next_handler);
+    } else {
+      /* Otherwise, we've hit the final handler in the list. */
+      handled = current->value().callback(signo, info, uap, current->value().context, NULL);
+    }
+  } shared_handler_context.callbacks.set_reading(false);
 
-    return handled;
+  return handled;
 };
 
 /** 
@@ -201,8 +201,10 @@ void plcrash_signal_handler (int signo, siginfo_t *info, void *uapVoid) {
     /* Start iteration; we currently re-raise the signal if not handled by callbacks; this should be revisited
      * in the future, as the signal may not be raised on the expected thread.
      */
-    if (!internal_callback_iterator(signo, info, (ucontext_t *) uapVoid, NULL))
-        raise(signo);
+  if (!internal_callback_iterator(signo, info, (ucontext_t *) uapVoid, NULL)) 
+    // XXX brian.ll this is messing up the crashguard  
+    // raise(signo);
+    ;
 }
 
 /**
